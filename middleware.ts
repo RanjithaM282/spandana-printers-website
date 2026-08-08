@@ -58,12 +58,12 @@ export function middleware(request: NextRequest) {
   // Content Security Policy (basic)
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://cdn.razorpay.com",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https: blob:",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.phonepe.com https://checkout.razorpay.com https://cdn.razorpay.com",
-    "frame-src 'self' https://checkout.razorpay.com",
+    "connect-src 'self' https://api.phonepe.com https://api-preprod.phonepe.com",
+    "frame-src 'self'",
   ].join('; ');
 
   response.headers.set('Content-Security-Policy', csp);

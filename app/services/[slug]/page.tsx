@@ -1291,7 +1291,7 @@ export default function ServiceDetailPage({ params }: Props) {
                     onClick={async () => {
                       setIsProcessingPayment(true);
                       try {
-                        // Initiate Razorpay payment
+                        // Initiate PhonePe payment
                         const paymentPayload = {
                           orderId: pendingOrder.id,
                           amount: Math.ceil(pendingOrder.total * 0.3) * 100, // Convert to paise
@@ -1300,9 +1300,9 @@ export default function ServiceDetailPage({ params }: Props) {
                           customerPhone: pendingOrder.customerPhone,
                         };
                         
-                        console.log('Sending payment request:', paymentPayload);
+                        console.log('Sending PhonePe payment request:', paymentPayload);
                         
-                        const paymentResponse = await fetch('/api/payments/razorpay', {
+                        const paymentResponse = await fetch('/api/payments/phonepe', {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -1311,90 +1311,13 @@ export default function ServiceDetailPage({ params }: Props) {
                         });
                         
                         const paymentResult = await paymentResponse.json();
-                        console.log('Payment API Response:', paymentResult);
+                        console.log('PhonePe API Response:', paymentResult);
                         
-                        if (paymentResult.success) {
-                          // Open Razorpay checkout
-                          const options = {
-                            ...paymentResult.data,
-                            handler: async function (response: any) {
-                              console.log('Payment successful:', response);
-                              // Payment successful - save order to database
-                              const updatedOrderData = {
-                                ...pendingOrder,
-                                paymentStatus: 'partially_paid',
-                                advancePaid: Math.ceil(pendingOrder.total * 0.3),
-                                remainingAmount: pendingOrder.total - Math.ceil(pendingOrder.total * 0.3),
-                                paymentHistory: [{
-                                  id: `payment-${Date.now()}`,
-                                  orderId: pendingOrder.id,
-                                  amount: Math.ceil(pendingOrder.total * 0.3),
-                                  paymentType: 'advance' as const,
-                                  transactionId: response.razorpay_payment_id,
-                                  paymentDate: new Date().toISOString(),
-                                  status: 'completed' as const,
-                                  paymentMethod: 'razorpay'
-                                }],
-                                files: pendingOrder.files
-                              };
-                              
-                              try {
-                                const saveResponse = await fetch('/api/orders', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify(updatedOrderData)
-                                });
-                                
-                                const saveResult = await saveResponse.json();
-                                
-                                if (saveResult.success) {
-                                  alert(`Payment successful! Order placed successfully.\n\nOrder ID: ${pendingOrder.id}\n\nPlease save this Order ID for future reference.`);
-                                  setShowPayment(false);
-                                  setIsProcessingPayment(false);
-                                  // Reset form fields
-                                  setCustomerName('');
-                                  setCustomerEmail('');
-                                  setCustomerPhone('8904467535');
-                                  setNotes('');
-                                  setFiles([]);
-                                  setShowOrderForm(false);
-                                } else {
-                                  console.error('Failed to save order:', saveResult);
-                                  alert('Payment successful but failed to save order details. Please contact support.');
-                                  setIsProcessingPayment(false);
-                                }
-                              } catch (error) {
-                                console.error('Error saving order:', error);
-                                alert('Payment successful but failed to save order details. Please contact support.');
-                                setIsProcessingPayment(false);
-                              }
-                            },
-                            modal: {
-                              ondismiss: function() {
-                                console.log('Checkout form closed');
-                                setIsProcessingPayment(false);
-                              }
-                            }
-                          };
-                          
-                          // Load Razorpay script dynamically
-                          const script = document.createElement('script');
-                          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                          script.async = true;
-                          script.onload = () => {
-                            const razorpay = new (window as any).Razorpay(options);
-                            
-                            razorpay.on('payment.failed', function (response: any) {
-                              console.error('Payment failed:', response);
-                              alert('Payment failed. Please try again.');
-                              setIsProcessingPayment(false);
-                            });
-                            
-                            razorpay.open();
-                          };
-                          document.body.appendChild(script);
+                        if (paymentResult.success && paymentResult.data?.redirectUrl) {
+                          // Redirect to PhonePe payment page
+                          window.location.href = paymentResult.data.redirectUrl;
                         } else {
-                          console.error('Payment failed:', paymentResult);
+                          console.error('PhonePe payment failed:', paymentResult);
                           alert(`Payment initiation failed: ${paymentResult.error || 'Unknown error'}`);
                           setIsProcessingPayment(false);
                         }
@@ -1404,9 +1327,9 @@ export default function ServiceDetailPage({ params }: Props) {
                         setIsProcessingPayment(false);
                       }
                     }}
-                    className="w-full bg-blue-600 text-white py-3 rounded-2xl hover:bg-blue-700 transition font-semibold"
+                    className="w-full bg-purple-600 text-white py-3 rounded-2xl hover:bg-purple-700 transition font-semibold"
                   >
-                    Pay with Razorpay
+                    Pay with PhonePe
                   </button>
                   <button
                     onClick={() => {

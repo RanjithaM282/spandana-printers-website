@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { updateOrder, getOrders, savePaymentRecord, getPaymentHistory } from '@/lib/database';
-import Razorpay from 'razorpay';
 import { verifyPhonePeWebhook, generatePhonePeChecksum } from '@/lib/paymentVerification';
 
 // PhonePe configuration
@@ -37,73 +36,88 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Check if PhonePe credentials are configured
+    if (!PHONEPE_MERCHANT_ID || !PHONEPE_SALT_KEY) {
+      console.error('PhonePe credentials not configured');
+      return NextResponse.json(
+        { success: false, error: 'Payment gateway not configured. Please add PHONEPE_MERCHANT_ID and PHONEPE_SALT_KEY to environment variables.' },
+        { status: 500 }
+      );
+    }
+    
     // Amount is already in paise from frontend
     const amountInPaise = paymentData.amount;
     console.log('Amount in paise:', amountInPaise);
     
-    // For project demonstration, we'll use a mock payment flow
-    // In production, this would integrate with real PhonePe API
-    console.log('=== PROJECT DEMONSTRATION MODE ===');
-    console.log('Using mock payment flow for demonstration purposes');
-    
-    // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Create mock successful payment response
-    const mockResponse = {
-      success: true,
-      code: 'PAYMENT_INITIATED',
-      message: 'Payment initiated successfully',
-      data: {
-        merchantId: PHONEPE_MERCHANT_ID,
-        merchantTransactionId: paymentData.orderId,
-        transactionId: `TXN_${Date.now()}`,
-        amount: amountInPaise,
-        redirectUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/payment/return?orderId=${paymentData.orderId}&status=success`,
-        paymentInstrument: {
-          type: 'PAY_PAGE'
-        }
+    // Prepare PhonePe API payload
+    const merchantTransactionId = paymentData.orderId;
+    const payload = {
+      merchantId: PHONEPE_MERCHANT_ID,
+      merchantTransactionId,
+      amount: amountInPaise,
+      redirectUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/payment/return?orderId=${merchantTransactionId}`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/payments/phonepe/webhook`,
+      paymentInstrument: {
+        type: 'PAY_PAGE'
+      },
+      mobileNumber: paymentData.customerPhone,
+      deviceContext: {
+        deviceOS: 'WEB'
       }
     };
     
-    console.log('Mock payment response:', mockResponse);
+    const payloadString = JSON.stringify(payload);
+    const checksum = generatePhonePeChecksum(payloadString, PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX);
     
-    // Simulate callback after 3 seconds (for demo)
-    setTimeout(async () => {
-      try {
-        console.log('=== SIMULATING PAYMENT CALLBACK ===');
-        const { updateOrder, savePaymentRecord } = await import('@/lib/database');
-        
-        // Save payment record to MySQL
-        await savePaymentRecord({
-          orderId: paymentData.orderId,
-          amount: paymentData.amount / 100, // Convert paise to rupees
-          paymentType: 'full',
-          transactionId: mockResponse.data.transactionId,
-          paymentDate: new Date().toISOString(),
-          status: 'completed',
-          paymentMethod: 'PhonePe',
-        });
-        
-        // Update order status to paid
-        await updateOrder(paymentData.orderId, {
-          paymentStatus: 'paid',
-          status: 'processing',
-          transactionId: mockResponse.data.transactionId,
-          paymentDate: new Date().toISOString()
-        });
-        
-        console.log(`Payment completed for order: ${paymentData.orderId}`);
-      } catch (error) {
-        console.error('Error in simulated callback:', error);
-      }
-    }, 3000);
+    console.log('PhonePe API payload prepared');
+    console.log('Merchant Transaction ID:', merchantTransactionId);
     
-    return NextResponse.json({
-      success: true,
-      data: mockResponse.data,
-      message: 'Payment initiated successfully (Demo Mode)'
+    // Make API call to PhonePe
+    const phonePeResponse = await fetch(`${PHONEPE_BASE_URL}/pg/v1/pay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': PHONEPE_MERCHANT_ID
+      },
+      body: JSON.stringify({
+        request: payloadString
+      })
     });
+    
+    const responseText = await phonePeResponse.text();
+    console.log('PhonePe API response status:', phonePeResponse.status);
+    console.log('PhonePe API response:', responseText);
+    
+    if (!phonePeResponse.ok) {
+      console.error('PhonePe API error:', responseText);
+      return NextResponse.json(
+        { success: false, error: `PhonePe API error: ${phonePeResponse.status}` },
+        { status: phonePeResponse.status }
+      );
+    }
+    
+    const phonePeData = JSON.parse(responseText);
+    
+    if (phonePeData.success && phonePeData.data?.instrumentResponse?.redirectInfo?.url) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          merchantId: PHONEPE_MERCHANT_ID,
+          merchantTransactionId,
+          redirectUrl: phonePeData.data.instrumentResponse.redirectInfo.url,
+          transactionId: phonePeData.data.transactionId
+        },
+        message: 'Payment initiated successfully'
+      });
+    } else {
+      console.error('PhonePe payment initiation failed:', phonePeData);
+      return NextResponse.json(
+        { success: false, error: phonePeData.message || 'Payment initiation failed' },
+        { status: 400 }
+      );
+    }
   } catch (error) {
     console.error('Unexpected error in PhonePe payment:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -114,106 +128,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle PhonePe callback
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.text();
-    const decodedBody = Buffer.from(body, 'base64').toString('utf8');
-    const paymentData = JSON.parse(decodedBody);
-    
-    // Verify webhook signature
-    if (!PHONEPE_SALT_KEY || !PHONEPE_SALT_INDEX) {
-      console.error('PhonePe credentials not configured');
-      return NextResponse.json(
-        { success: false, error: 'Payment gateway not configured' },
-        { status: 500 }
-      );
-    }
-
-    const xVerify = paymentData.checksum;
-    const isValid = verifyPhonePeWebhook(decodedBody, xVerify, PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX);
-    
-    if (!isValid) {
-      console.error('Invalid PhonePe webhook signature');
-      return NextResponse.json(
-        { success: false, error: 'Invalid webhook signature' },
-        { status: 400 }
-      );
-    }
-    
-    // Update order status based on payment
-    const orderId = paymentData.data.merchantTransactionId;
-    const paymentStatus = paymentData.data.paymentState;
-    const transactionId = paymentData.data.transactionId;
-    
-    // Get order details to check payment history
-    const order = await getOrders();
-    const currentOrder = order.find(o => o.id === orderId);
-    
-    if (paymentStatus === 'COMPLETED') {
-      if (currentOrder) {
-        // Update payment history
-        const updatedPaymentHistory = currentOrder.paymentHistory?.map(record => {
-          if (record.status === 'pending') {
-            return {
-              ...record,
-              status: 'completed' as const,
-              transactionId
-            };
-          }
-          return record;
-        }) || [];
-        
-        // Check if this was an advance payment
-        const totalPaid = updatedPaymentHistory
-          .filter(r => r.status === 'completed')
-          .reduce((sum, r) => sum + r.amount, 0);
-        
-        const remainingAmount = currentOrder.total - totalPaid;
-        
-        await updateOrder(orderId, {
-          status: remainingAmount <= 0 ? 'processing' : 'pending',
-          paymentStatus: remainingAmount <= 0 ? 'paid' : 'partially_paid',
-          transactionId,
-          paymentDate: new Date().toISOString(),
-          advancePaid: totalPaid,
-          remainingAmount,
-          paymentHistory: updatedPaymentHistory
-        });
-        
-        console.log(`Payment successful for order: ${orderId}. Total paid: ${totalPaid}, Remaining: ${remainingAmount}`);
-      }
-      
-      // Send confirmation email (implement email service)
-      // await sendOrderConfirmationEmail(orderId);
-    } else {
-      // Update payment history to failed
-      if (currentOrder) {
-        const updatedPaymentHistory = currentOrder.paymentHistory?.map(record => {
-          if (record.status === 'pending') {
-            return {
-              ...record,
-              status: 'failed' as const,
-              transactionId
-            };
-          }
-          return record;
-        }) || [];
-        
-        await updateOrder(orderId, {
-          paymentHistory: updatedPaymentHistory
-        });
-      }
-      
-      console.log(`Payment failed for order: ${orderId}`);
-    }
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('PhonePe callback error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Callback processing failed' },
-      { status: 500 }
-    );
-  }
-}

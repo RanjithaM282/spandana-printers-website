@@ -19,28 +19,6 @@ export function verifyPhonePeWebhook(
   }
 }
 
-// Razorpay webhook signature verification
-export function verifyRazorpayWebhook(
-  payload: string,
-  webhookSignature: string,
-  webhookSecret: string
-): boolean {
-  try {
-    const expectedSignature = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(payload)
-      .digest('hex');
-    
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(webhookSignature)
-    );
-  } catch (error) {
-    console.error('Razorpay webhook verification error:', error);
-    return false;
-  }
-}
-
 // Generate PhonePe checksum for payment initiation
 export function generatePhonePeChecksum(
   payload: string,

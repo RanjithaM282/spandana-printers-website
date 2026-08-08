@@ -21,11 +21,6 @@ PHONEPE_MERCHANT_ID=your_phonepe_merchant_id
 PHONEPE_SALT_KEY=your_phonepe_salt_key
 PHONEPE_SALT_INDEX=1
 
-# Razorpay Configuration
-RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxx
-RAZORPAY_KEY_SECRET=your_razorpay_key_secret
-RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret
-
 # CORS Configuration (Comma-separated list of allowed origins)
 ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 
