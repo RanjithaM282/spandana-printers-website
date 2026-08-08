@@ -1,0 +1,34 @@
+# Database Configuration (TiDB Cloud - MySQL-compatible)
+MYSQL_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+MYSQL_PORT=4000
+MYSQL_USER=1Ugsdz7BJXG6aKc.root
+MYSQL_PASSWORD=rDaXzHSh3HRg0jna
+MYSQL_DATABASE=spandana_printers
+
+# Admin Authentication (Required - No fallbacks)
+NEXT_PUBLIC_ADMIN_EMAIL=admin@printshop.com
+NEXT_PUBLIC_ADMIN_PASSWORD=your-strong-admin-password-here
+
+# JWT Configuration (Required - Generate with: openssl rand -base64 32)
+JWT_SECRET=your-jwt-secret-key-min-32-characters-long
+
+# Email Configuration (Resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@yourdomain.com
+
+# PhonePe Configuration
+PHONEPE_MERCHANT_ID=your_phonepe_merchant_id
+PHONEPE_SALT_KEY=your_phonepe_salt_key
+PHONEPE_SALT_INDEX=1
+
+# Razorpay Configuration
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret
+
+# CORS Configuration (Comma-separated list of allowed origins)
+ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+
+# Application Configuration
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+NODE_ENV=development
