@@ -2,45 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Order } from '@/lib/database';
 import { saveOrder, getOrders, updateOrder, deleteOrder, sendOrderConfirmationEmail } from '@/lib/database';
 
-// Test email functionality
-export async function PATCH(request: NextRequest) {
-  try {
-    const { orderId } = await request.json();
-    
-    if (!orderId) {
-      return NextResponse.json(
-        { success: false, error: 'Order ID is required' },
-        { status: 400 }
-      );
-    }
-    
-    const orders = await getOrders();
-    const order = orders.find(o => o.id === orderId);
-    
-    if (!order) {
-      return NextResponse.json(
-        { success: false, error: 'Order not found' },
-        { status: 404 }
-      );
-    }
-    
-    console.log('Testing email functionality for order:', orderId);
-    const emailResult = await sendOrderConfirmationEmail(order);
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Email test completed. Check console for details.',
-      emailResult
-    });
-  } catch (error) {
-    console.error('Email test error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Email test failed' },
-      { status: 500 }
-    );
-  }
-}
-
 // GET all orders or specific order for tracking
 export async function GET(request: NextRequest) {
   try {
@@ -239,24 +200,6 @@ export async function PUT(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update order';
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
-    );
-  }
-}
-
-// OTP API route
-export async function POST_otp(request: NextRequest) {
-  try {
-    const body = await request.json();
-    console.log('OTP request body:', body);
-    
-    // Implement OTP logic here
-    // For now, just return a success response
-    return NextResponse.json({ success: true, message: 'OTP sent successfully' });
-  } catch (error) {
-    console.error('OTP error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to send OTP' },
       { status: 500 }
     );
   }
